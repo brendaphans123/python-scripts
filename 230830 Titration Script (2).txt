@@ -1,0 +1,158 @@
+import pandas as pd
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.interpolate import interp1d
+import csv
+import matplotlib.pyplot as plt
+
+
+#filename = input("Raw Data File: ")
+df = pd.read_csv(input("Raw Data File: "))
+
+# Determine the unique values in the column you want to split the data by
+unique_values = df['Sample Number'].unique()
+
+#creating data structure to hold dataframes
+dataframes = {}
+
+#create list for ec50 dataframe
+sample_number = []
+EC50_lst = []
+EC50_stdev_lst = []
+ceiling_lst = []
+ceiling_stdev_lst = []
+
+#split dataframe by specific column value
+for value in unique_values:
+    sample_number.append(value)
+    dataframes[value] = df[df['Sample Number'] == value]
+
+for value, df in dataframes.items():
+    #sort data from highest concentration to lowest concentration
+    df = df.sort_values('Concentration (M)', ascending=False)
+    
+    #identify mean at zero concentration
+    zero_df = df[df['Concentration (M)'] == 0]
+    
+    #set mean at zero concentration to a variable
+    zero_value = zero_df.iloc[0]['Mean']
+    
+    #create list for new column
+    adjusted_RFU = []
+    #subtract zero values from all concentrations
+    for averages in df['Mean']:
+        averages -= zero_value
+        adjusted_RFU.append(averages)
+    #create new column using existing list
+    df['adjusted_RFU'] = adjusted_RFU
+    #drop last row (zero concentration) of each dataframe
+    df = df.drop(df.index[-1])
+    
+    #set x and y values
+    xdata = df['Concentration (M)']
+    ydata = df['adjusted_RFU']
+
+    
+    #function to determine ec50
+    def func(x, ec50,p):
+        return p*(x/(x+ec50))
+    popt, pcov = curve_fit(func, xdata, ydata)
+    EC50 = popt[0]
+    EC50_sigfig = format(EC50,".3g")
+    EC50_sigfig = "{:.2e}".format(EC50)
+    EC50_lst.append(EC50)
+    ceiling = popt[1]
+    ceiling_lst.append(ceiling)
+    EC50_stdev = pcov[0,0]**0.5
+    EC50_stdev_sigfig = format(EC50_stdev,".3g")
+    EC50_stdev_sigfig = "{:.2e}".format(EC50_stdev)
+    EC50_stdev_lst.append(EC50_stdev)
+    ceiling_stdev = pcov[1,1]**0.5
+    ceiling_stdev_lst.append(ceiling_stdev)
+    
+    
+    #new list for normalized values
+    normalized_RFU = []
+    for adjusted_values in df['adjusted_RFU']:
+        adjusted_values/=ceiling
+        normalized_RFU.append(adjusted_values)
+    #create new column with normalized values
+    df['normalized_RFU'] = normalized_RFU
+    
+    #new list for curve fit
+    titration_fit = []
+    for c in df['Concentration (M)']:
+        c = c/(c+EC50)
+        titration_fit.append(c)
+    #create new column with curve fit values
+    df['titration_fit'] = titration_fit   
+    
+    #new list for normalized error
+    normalized_err = []
+    for error in df['Error']:
+        error/=ceiling
+        normalized_err.append(error)
+    df['normalized_error'] = normalized_err
+    
+    #output csv file for processed data
+    df.to_csv(f"output{value}.csv")
+    
+     conc_for_titration_fit = []
+     titration_fit_for_plot = []
+    
+     conc_for_fit = xdata.tolist()
+     for i in range(len(conc_for_fit)-1):
+         conc_for_titration_fit.append(conc_for_fit[i])
+         new_conc = (conc_for_fit[i+1]-conc_for_fit[i])/2
+         conc_for_titration_fit.append(new_conc)
+#     print(len(conc_for_titration_fit)    
+    
+    
+     for conc in xdata_list:
+         titration_fit_for_plot.append(conc)
+         conc = conc/(conc+EC50)
+         titration_fit_for_plot.append(conc)
+    
+    #set x and y axis for plotting
+    x = df['Concentration (M)']
+    y = df['normalized_RFU']
+    y_err = df['normalized_error']
+    
+    x2 = xdata_list
+    y2 = df['titration_fit']
+
+    #plot scatter plot and regular plot
+    plt.scatter(x, y,color='royalblue')
+
+    # Add error bars
+    for xi, yi, err in zip(x, y, y_err):
+        plt.errorbar(xi, yi, yerr=err, fmt='none', color='royalblue')
+    plt.xscale("log")
+    plt.plot(x, y2, color= 'royalblue')
+    
+    #label plots
+    plt.xlabel('Concentration (M)')
+    plt.ylabel('Normalized Response')
+    plt.title(f"{value} Titration")
+    
+    plt.show()
+    plt.close()
+    
+    #print ec50 and ceiling values
+    print(f"{value} EC50: {EC50_sigfig} ± {EC50_stdev_sigfig} M")
+#     print(f"ceiling: {ceiling} ± {ceiling_stdev}")
+    
+    
+
+#create new dataframe for a table of ec50 data per each sample
+df2 = pd.DataFrame(columns=['Sample Number','EC50', 'EC50 stdev', 'Ceiling', 'Ceiling Stdev'])
+df2['Sample Number'] = sample_number
+df2['EC50'] = EC50_lst
+df2['EC50 stdev'] = EC50_stdev_lst
+df2['Ceiling'] = ceiling_lst
+df2['Ceiling Stdev'] = ceiling_stdev_lst
+print(df2)
+
+#output ec50 dataframe to csv file
+df2.to_csv('ec50 output.csv')
+print("Processed data and EC50 data sucessfully saved as a csv file.")
