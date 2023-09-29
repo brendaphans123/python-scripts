@@ -1,0 +1,202 @@
+#last edit 230922
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import datetime
+import math
+
+def sort_data(filename):    
+    df_raw =pd.read_csv(filename, sep='\t', encoding = "iso-8859-1", skiprows=[0,1])
+
+    df_raw = df_raw.drop(columns=df_raw.columns[1], axis=1)    
+    df_raw = df_raw.iloc[:-2, :-1]
+    
+    return df_raw
+    
+def process_replicates(df,plate_map,filename):
+    data = {}
+    data['time'] = time_list
+    for triplicates in plate_map['Wells']:
+        triplicates = triplicates.upper()
+        replicate = triplicates.split(',')
+        for wells in replicate:
+            data[f'{wells}'] = df[f'{wells}'].tolist()
+                   
+    rearranged_df = pd.DataFrame(data)
+    rearranged_df.to_csv(f'{filename}.csv', index=False)    
+    return rearranged_df
+
+def process_avg(df,plate_map,filename):
+    data = {}
+    data['time'] = time_list    
+    for triplicates in plate_map['Wells']:
+        triplicates = triplicates.upper()
+        replicate = triplicates.split(',')    
+        data[f'{replicate}'] = df[replicate].mean(axis=1)
+                   
+    avg_df = pd.DataFrame(data)
+    avg_df.to_csv(f'{filename}.csv', index=False)
+    
+    return avg_df
+
+def process_stdev(df,plate_map,filename):
+    data = {}
+    data['time'] = time_list  
+    for triplicates in plate_map['Wells']:
+        triplicates = triplicates.upper()
+        replicate = triplicates.split(',')    
+        data[f'{replicate}'] = df[replicate].std(axis=1)
+                   
+    stdev_df = pd.DataFrame(data)
+    stdev_df.to_csv(f'{filename}.csv', index=False)
+    return stdev_df
+    
+def format_time(time_list):
+    updated_time_list = []
+    time_minute_list = []
+    for time in time_list:       
+        if time.count(':') == 1:
+            time_parts = time.split(':')
+            minutes = time_parts[0].zfill(2)
+            seconds = time_parts[1].zfill(2)
+            new_time_format = f"00:{minutes}:{seconds}"
+            updated_time_list.append(new_time_format)
+
+        elif time.count(':') == 2:
+            time_parts = time.split(':')
+            hours = time_parts[0].zfill(2)
+            minutes = time_parts[1].zfill(2)
+            seconds = time_parts[2].zfill(2)
+            new_time_format = f"{hours}:{minutes}:{seconds}"
+            updated_time_list.append(new_time_format)
+
+    for new_time in updated_time_list:
+        time_obj = datetime.datetime.strptime(new_time,'%H:%M:%S')
+        total_minutes = time_obj.hour * 60 + time_obj.minute + (time_obj.second/60)
+        time_minute_list.append(total_minutes)
+    
+    return time_minute_list
+   
+def compile_plot_data():
+    total_conditions = len(average_df.columns)
+    x = time_data
+    y_data = []
+    y_data_stdev = []
+
+    for i in range(1,total_conditions):
+        y_data.append(average_df.iloc[:,i].tolist())
+        y_data_stdev.append(stdev_df.iloc[:,i].tolist())
+    
+    return y_data, y_data_stdev   
+   
+def plot_on_off(plate_map):    
+    fig, axs = plt.subplots(nrows=4, ncols=4, figsize=(20, 20))
+    axs = axs.flatten()
+    x = time_data
+    y_data = compiled_data[0]
+    y_data_stdev = compiled_data[1]
+    sample_list = list(plate_map['Sample'])
+    condition_list = list(plate_map['Condition'])
+    total_num_plots = int(input('How many plots are you generating? '))
+
+    for m in range(total_num_plots):
+        axs[m].scatter(x, y_data[m*2], label=f'{condition_list[m*2]}')
+        axs[m].scatter(x, y_data[m*2+1], label=f'{condition_list[m*2+1]}')
+
+        axs[m].errorbar(x, y_data[m*2], yerr=y_data_stdev[m*2])
+        axs[m].errorbar(x, y_data[m*2+1], yerr=y_data_stdev[m*2+1])
+
+        axs[m].set_title(f"{sample_list[m*2]}")
+        axs[m].set_xlabel("time (min)")
+        axs[m].set_ylabel("RFU")
+        axs[m].legend()
+    #     axs[m].set_xlim(0, 60)
+
+    plt.subplots_adjust(hspace=0.5)
+    plt.show()
+    
+def plot_8_conc_titration(plate_map):
+    fig, axs = plt.subplots(nrows=8, ncols=2, figsize=(20, 80))
+    axs = axs.flatten()
+    x = time_data
+    y_data = compiled_data[0]
+    y_data_stdev = compiled_data[1]
+    sample_list = list(plate_map['Sample'])
+    condition_list = list(plate_map['Condition'])
+    total_num_plots = int(input('How many plots are you generating? '))
+
+    for m in range(total_num_plots):
+        for i in range(8):
+            axs[m].scatter(x, y_data[m*8+i], label=f'{condition_list[m*8+i]}')
+            axs[m].errorbar(x, y_data[m*8+i], yerr=y_data_stdev[m*8+i])
+
+        axs[m].set_title(f"{sample_list[m*8]}")
+        axs[m].set_xlabel("time (min)")
+        axs[m].set_ylabel("RFU")
+        axs[m].legend(loc='upper right')
+    #     axs[m].set_xlim(0, 60)
+
+    plt.subplots_adjust(hspace=0.5)
+    plt.show()
+    
+def plot_4_conc_titration(plate_map):
+    fig, axs = plt.subplots(nrows=8, ncols=2, figsize=(20, 80))
+    axs = axs.flatten()
+    x = time_data
+    y_data = compiled_data[0]
+    y_data_stdev = compiled_data[1]
+    sample_list = list(plate_map['Sample'])
+    condition_list = list(plate_map['Condition'])
+    total_num_plots = int(input('How many plots are you generating? '))
+
+    for m in range(total_num_plots):
+        for i in range(4):
+            axs[m].scatter(x, y_data[m*4+i], label=f'{condition_list[m*4+i]}')
+            axs[m].errorbar(x, y_data[m*4+i], yerr=y_data_stdev[m*4+i])
+
+        axs[m].set_title(f"{sample_list[m*4]}")
+        axs[m].set_xlabel("time (min)")
+        axs[m].set_ylabel("RFU")
+        axs[m].legend(loc='upper right')
+    #     axs[m].set_xlim(0, 60)
+
+    plt.subplots_adjust(hspace=0.5)
+    plt.show()
+
+
+print("Types of assays:\nA. on/off test\nB. 8 concentration titration\nC. 4 concentration titration")
+assay_type = input("What type of assay do you need process? ").upper()
+
+df = sort_data((input("Raw Data File: ")))
+print("Raw data is sorted and cleaned.")
+
+plate_map = pd.read_csv((input("Import plate map: ")))
+print("Plate map sucessfully imported.")
+
+time_list = df.iloc[:,0].tolist()
+
+process_replicates(df,plate_map,'triplicates')
+print("Triplicates processed and saved.")
+
+average_df = process_avg(df,plate_map,'average')
+print("Averages processed and saved.")
+stdev_df = process_stdev(df,plate_map,'stdev')
+print("Standard deviations processed and saved.")
+
+time_data = format_time(time_list)
+compiled_data = compile_plot_data()
+
+
+if assay_type == 'A':
+    plot_on_off(plate_map)
+    
+elif assay_type == 'B':
+    plot_8_conc_titration(plate_map)
+    
+elif assay_type == 'C':
+    plot_4_conc_titration(plate_map)
+
+
+
+    
+    
