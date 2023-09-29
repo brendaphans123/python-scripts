@@ -1,0 +1,110 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+
+def avg(df):
+    return df.mean()
+
+def stdev(df):
+    return df.std()
+
+def calc_avg_stdev(plate_map,func,lst):
+    for triplicates in plate_map['Wells']:
+        triplicates = triplicates.upper()
+        replicate = triplicates.split(',')
+        triplicate_combined = last_10_min_triplicates[replicate].stack()
+        triplicate_avg_stdev = func(triplicate_combined)
+        lst.append(triplicate_avg_stdev)  
+    return lst
+    
+def group_conditions(condition,plate_map):
+    avg_plus_ligand = []
+    avg_minus_ligand = []
+    stdev_plus_ligand = []
+    stdev_minus_ligand = []
+    
+    if condition == '+':
+        num = 0
+        for i in range(num,len(avg_list),2):
+            avg_plus_ligand.append(avg_list[i])
+            stdev_plus_ligand.append(std_list[i])
+        return avg_plus_ligand, stdev_plus_ligand
+    elif condition == '-':
+        num=1
+        for i in range(num,len(avg_list),2):
+            avg_minus_ligand.append(avg_list[i])
+            stdev_minus_ligand.append(std_list[i])
+        return avg_minus_ligand, stdev_minus_ligand
+    else:
+        print('invalid condition')
+        
+def define_samples(plate_map):
+    samples = plate_map['Sample'].tolist()
+    samples_dict = []
+    for i in range(0,len(avg_list),2):
+        samples_dict.append(samples[i])
+    return samples_dict
+    
+#collect data to plot bar plots
+def bar_plots(plus_ligand_avg,minus_ligand_avg,plus_ligand_stdev,minus_ligand_stdev):
+    plus = input('Label +ligand concentrations: ')
+    minus = input('Label -ligand concentrations: ')
+
+    data_labels = [plus,minus]
+    bar_width = 0.35
+    x = np.arange(len(samples))
+
+    if len(samples)>8:
+        fig, ax = plt.subplots(figsize=(20,6))
+    else:
+        fig, ax = plt.subplots(figsize=(10,6))
+
+    for i, data in enumerate([plus_ligand_avg, minus_ligand_avg]):
+        x_position = x + i * bar_width
+        bar = ax.bar(x_position, data, bar_width, label=data_labels[i], alpha=0.7)
+
+        bar_color = bar[0].get_facecolor()
+        ax.errorbar(x_position, data, yerr=[plus_ligand_stdev, minus_ligand_stdev][i], fmt='none', ecolor=bar_color, elinewidth=2, capsize=5)
+
+    ax.set_xticks(x + bar_width / 2)
+    ax.set_xticklabels(samples)
+    ax.set_ylabel('last 10 min avg RFU')
+    ax.legend()
+    ax.set_title('bar plots')
+    plt.tight_layout()
+    plt.show()
+
+
+
+plate_map_filename = input('plate map filename: ')
+plate_map = pd.read_csv(plate_map_filename)
+
+triplicates_filename = input('triplicates filename: ')
+triplicate_df = pd.read_csv(triplicates_filename)
+
+datapoints = int(input('How many datapoints from the endpoint do you want to include? (dependent on time and reads per minute) '))
+last_10_min_triplicates = triplicate_df.tail(datapoints)
+
+avg_list = []
+std_list = []
+calc_avg_stdev(plate_map,avg,avg_list)
+calc_avg_stdev(plate_map,stdev,std_list)
+plus_ligand_avg = group_conditions('+',plate_map)[0]
+plus_ligand_stdev = group_conditions('+',plate_map)[1]
+minus_ligand_avg = group_conditions('-',plate_map)[0]
+minus_ligand_stdev = group_conditions('-',plate_map)[1]
+samples = define_samples(plate_map)
+
+#convert +/- avg and stdev with samples to a dataframe
+bar_plot_dict = {}
+bar_plot_dict['Sample'] = samples
+bar_plot_dict['+ligand'] = plus_ligand_avg
+bar_plot_dict['-ligand'] = minus_ligand_avg
+bar_plot_dict['+ligand stdev'] = plus_ligand_stdev
+bar_plot_dict['-ligand stdev'] = minus_ligand_stdev
+bar_plot_df = pd.DataFrame(bar_plot_dict)
+bar_plot_df.to_csv('last 10 min data.csv',index=False)
+
+bar_plots(plus_ligand_avg,minus_ligand_avg,plus_ligand_stdev,minus_ligand_stdev)
+
