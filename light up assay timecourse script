@@ -1,4 +1,4 @@
-#last edit 230922
+##### last edit 231005
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -76,7 +76,7 @@ def format_time(time_list):
         time_minute_list.append(total_minutes)
     
     return time_minute_list
-   
+    
 def compile_plot_data():
     total_conditions = len(average_df.columns)
     x = time_data
@@ -97,20 +97,34 @@ def plot_on_off(plate_map):
     y_data_stdev = compiled_data[1]
     sample_list = list(plate_map['Sample'])
     condition_list = list(plate_map['Condition'])
-    total_num_plots = int(input('How many plots are you generating? '))
+
 
     for m in range(total_num_plots):
-        axs[m].scatter(x, y_data[m*2], label=f'{condition_list[m*2]}')
-        axs[m].scatter(x, y_data[m*2+1], label=f'{condition_list[m*2+1]}')
+        if m*2 < len(y_data) and m*2+1 < len(y_data_stdev):
+            axs[m].scatter(x, y_data[m*2], label=f'{condition_list[m*2]}')
+            axs[m].scatter(x, y_data[m*2+1], label=f'{condition_list[m*2+1]}')
 
-        axs[m].errorbar(x, y_data[m*2], yerr=y_data_stdev[m*2])
-        axs[m].errorbar(x, y_data[m*2+1], yerr=y_data_stdev[m*2+1])
+            axs[m].errorbar(x, y_data[m*2], yerr=y_data_stdev[m*2])
+            axs[m].errorbar(x, y_data[m*2+1], yerr=y_data_stdev[m*2+1])
 
-        axs[m].set_title(f"{sample_list[m*2]}")
-        axs[m].set_xlabel("time (min)")
-        axs[m].set_ylabel("RFU")
-        axs[m].legend()
-    #     axs[m].set_xlim(0, 60)
+            axs[m].set_title(f"{sample_list[m*2]}")
+            axs[m].set_xlabel("time (min)")
+            axs[m].set_ylabel("RFU")
+            axs[m].legend()
+            if condition_to_set_ylim:
+                axs[m].set_ylim(y_min, y_max)
+            #     axs[m].set_xlim(0, 60)
+        else:
+            axs[m].scatter(x, y_data[m*2], label=f'{condition_list[m*2]}')
+
+            axs[m].errorbar(x, y_data[m*2], yerr=y_data_stdev[m*2])
+
+            axs[m].set_title(f"{sample_list[m*2]}")
+            axs[m].set_xlabel("time (min)")
+            axs[m].set_ylabel("RFU")
+            axs[m].legend()
+            if condition_to_set_ylim:
+                axs[m].set_ylim(y_min, y_max)
 
     plt.subplots_adjust(hspace=0.5)
     plt.show()
@@ -186,17 +200,19 @@ print("Standard deviations processed and saved.")
 time_data = format_time(time_list)
 compiled_data = compile_plot_data()
 
-
+condition_to_set_ylim = False
 if assay_type == 'A':
+    total_num_plots = int(input('How many plots are you generating? '))
     plot_on_off(plate_map)
+    change_y_axis = input('Do you need to adjust y axis limit? yes or no ').lower()
+    if change_y_axis == 'yes':
+        condition_to_set_ylim = True
+        y_min = int(input('At what value do you want to start minimum y limit? ' ))
+        y_max = int(input('At what value do you want to start maximum y limit? ' ))
+        plot_on_off(plate_map)
     
 elif assay_type == 'B':
     plot_8_conc_titration(plate_map)
     
 elif assay_type == 'C':
     plot_4_conc_titration(plate_map)
-
-
-
-    
-    
